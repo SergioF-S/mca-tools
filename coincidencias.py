@@ -1,10 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-
+from matplotlib.text import Text
 
 class peakSelector:
+    """
 
+    """
     def __init__(self, file, **kwargs):
         """
         Indicate self variables here:
@@ -42,6 +44,7 @@ class peakSelector:
     def read_mca(self):
         f = open(self.filePath, "r")
 
+        time = None
         bins = []
         line = f.readline()
         while line != "":
@@ -119,3 +122,107 @@ class peakSelector:
             plt.title("Espectrograma Gamma")
 
         plt.show()
+
+    def interactive_plot(self):
+
+        peakPositions = []
+        delta_x = self.xbins[1] - self.xbins[0]
+        sensibility = 0.01 * max(self.xbins) # 1% of the width
+
+        def click_event(event):
+            if isinstance(event.artist, Rectangle):
+                x = event.artist.get_x()
+                # We only want to add new data if it's far enough,
+                # to avoid problems with multiple firings in one click
+                if len(peakPositions) == 0:
+                    peakPositions.append(x)
+                    vertical_line_1.set_xdata([x, x])
+                    print(peakPositions)
+                    # Inside click events, we must ask implicitly
+                    # to redraw the changes, if this line isn't here,
+                    # it won't change unless you resize the window.
+                    fig.canvas.draw()
+                elif len(peakPositions) == 1:
+                    if abs(peakPositions[0]-x) > sensibility:
+                        peakPositions.append(x)
+                        vertical_line_2.set_xdata([x,x])
+                        # If we don't ask for it, it won't redraw it
+                        fig.canvas.draw()
+                else:
+                    print(peakPositions)
+                    return
+
+            elif isinstance(event.artist, Text):
+                text = event.artist.get_text()
+                if text == "Reset points":
+                    # It seems you cannot define this variable inside,
+                    # you can only append values to it
+                    for i in range(len(peakPositions)):
+                        # Every time you remove a value, the index adapt.
+                        # index 1 turns to index 0
+                        peakPositions.pop(0)
+
+                    # We return the vertical lines to their
+                    # original position
+                    vertical_line_1.set_xdata([max(self.xbins),
+                                               max(self.xbins)])
+                    vertical_line_2.set_xdata([0, 0])
+                    # If we don't ask for it, it won't redraw it
+                    fig.canvas.draw()
+
+                    print("Reset!")
+
+        # We define the plot. The bar plot and the vertical lines
+        fig, ax = plt.subplots()
+        ax.bar(self.xbins, self.bins, delta_x, picker = True)
+        vertical_line_1 = ax.axvline(linestyle = "--", color = "gray")
+        vertical_line_2 = ax.axvline(x = max(self.xbins),
+                                     linestyle = "--", color = "gray")
+
+        # Here we add the interactive text
+
+        # Peak options
+        ax.text(0.65 * max(self.xbins), 0.95 * max(self.bins),
+                "Peak options", size="x-large")
+
+        ax.text(0.65 * max(self.xbins), 0.85 * max(self.bins),
+                'Mark as single', picker = True, size="large", style =
+                "italic")
+
+        ax.text(0.65 * max(self.xbins), 0.75 * max(self.bins),
+                'Mark as double', picker = True, size="large", style =
+                "italic")
+
+        ax.text(0.65 * max(self.xbins), 0.65 * max(self.bins),
+                'Add new peak', picker = True, size="large", style =
+                "italic")
+
+        # Global options
+        ax.text(0.25 * max(self.xbins), 0.95 * max(self.bins),
+                "Global options", size="x-large")
+
+        ax.text(0.25 * max(self.xbins), 0.85 * max(self.bins),
+                'Add new peak', picker = True, size="large", style =
+                "italic")
+
+        ax.text(0.25 * max(self.xbins), 0.75 * max(self.bins),
+                'Reset all', picker = True, size="large", style =
+                "italic")
+
+
+
+        fig.canvas.mpl_connect('pick_event', click_event)
+        fig.show()
+
+
+
+file = "/home/stoneboy/Nextcloud/USC/Técnicas IV/Nuclear/Coincidencias gamma-gamma/Datos/Caracterización espectros/19-09-26/Detector 1/Bi/Bi_1_19-02_14-00.mca"
+p = peakSelector(file)
+
+#
+# bins, time = read_mca(file)
+# x_bins = np.arange(0,len(bins),1)
+# bins2, x_bins2 = rebining(10, bins)
+#
+# delta_x = x_bins2[1] - x_bins2[0]
+
