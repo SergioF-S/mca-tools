@@ -133,26 +133,26 @@ class peakSelector:
 
 
     def read_mca(self):
-        f = open(self.file_path, "r")
+        with open(self.file_path, "r") as f:
 
-        time = None
-        bins = []
-        line = f.readline()
-        while line != "":
-            if len(line) > 10 and line[:9] == "REAL_TIME":
-                time = int(line.split("-")[1]) # time in seconds
-
-            if (line.strip()).isdigit():
-                bins.append(int(line))
-
+            time = None
+            bins = []
             line = f.readline()
+            while line != "":
+                if len(line) > 10 and line[:9] == "REAL_TIME":
+                    time = int(line.split("-")[1]) # time in seconds
 
-        xbins = np.arange(0, len(bins), 1)
+                if (line.strip()).isdigit():
+                    bins.append(int(line))
 
-        self.bins = np.array(bins)
-        self.xbins = xbins
-        self.time = time
-        self.delta_x = self.xbins[1] - self.xbins[0]
+                line = f.readline()
+
+            xbins = np.arange(0, len(bins), 1)
+
+            self.bins = np.array(bins)
+            self.xbins = xbins
+            self.time = time
+            self.delta_x = self.xbins[1] - self.xbins[0]
 
 
         return np.array(bins), time
