@@ -1,13 +1,17 @@
 import numpy as np
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
+import matplotlib
 
 from scipy.optimize import curve_fit
 
-from uncertainty import round_uncertainty
-from translations import valid_languages
-from translations import translation_peakSelector as transl
+from .uncertainty import round_uncertainty
+from .translations import valid_languages
+from .translations import translation_peakSelector as transl
+
+matplotlib.use("qtagg")
 
 """
 Resets the values of the last peak inserted in the plot. It does so
@@ -580,20 +584,6 @@ class peakSelector:
 
         plt.show()
         return popt, pcov
-
-
-
-
-# Test
-if __name__ == "__main__":
-
-    Bi = peakSelector("Test/Bi.mca", bkg_file = "Test/Background.mca")
-    Co = peakSelector("Test/Co.mca", bkg_file= "Test/Background.mca", bins_fused = 20)
-
-    Bi.select_peaks()
-    Bi.fit_peak
-
-
 
 
 

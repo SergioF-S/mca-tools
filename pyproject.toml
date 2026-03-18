@@ -6,10 +6,11 @@ readme = "README.md"
 authors = [
     { name = "Diego Couto", email = "mail@diegocoutogarcia.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "matplotlib>=3.10.8",
     "numpy>=2.4.3",
+    "pyqt6>=6.10.2",
     "scipy>=1.17.1",
     "sympy>=1.14.0",
 ]
@@ -17,3 +18,8 @@ dependencies = [
 [build-system]
 requires = ["uv_build>=0.9.29,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipython>=9.11.0",
+]
