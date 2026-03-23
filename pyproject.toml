@@ -1,6 +1,6 @@
 [project]
 name = "mca-tools"
-version = "0.1.0"
+version = "0.5.0"
 description = "Set of tools to postprocess the data of a spectrogram made with a Multichannel analyzer (mca) "
 readme = "README.md"
 authors = [
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.29,<0.10.0"]
+requires = ["uv_build>=0.10.11,<0.11.0"]
 build-backend = "uv_build"
 
 [dependency-groups]

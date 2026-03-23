@@ -1,15 +1,18 @@
+import os
 import numpy as np
+from scipy.optimize import curve_fit
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
 import matplotlib
 
-from scipy.optimize import curve_fit
-
-from .uncertainty import round_uncertainty
-from .translations import valid_languages
 from .translations import translation_peakSelector as transl
+from .uncertainty import round_uncertainty
+
+import mca_tools as mca # lang as a global function
+
+
 
 matplotlib.use("qtagg")
 
@@ -41,6 +44,12 @@ end point 1], "single")]
 #
 # We cannot redefine the list inside the function (list = [],
 # so we need to remove all the elements by hand
+
+
+
+# Find nearest array element to value
+def find_nearest(array, value):
+    return (np.abs(array - value)).argmin()
 
 
 class peakSelector:
@@ -99,10 +108,14 @@ class peakSelector:
 
         # User options
         self.bins_fused = 10 # Default number of bins fused in rebining
-        self.lang = "en" # Plots language
 
-        # Interactive plot
+
+        # Peak info
         self.peak_positions = [ [ [], None ], ]
+        self.peak_energies = None
+        self.peak_channels = None
+        self.peak_channels_uncertainty = None
+
 
         # Background noise filtering
         self.bkg_file = None
@@ -115,17 +128,11 @@ class peakSelector:
                 self.bins_fused = val
             elif k == "bkg_file":
                 self.bkg_file = val
+            elif k == "peak_file":
+                self.load_peaks(val)
+            elif k == "peak_energies":
+                self.set_peak_energies(val)
 
-        # Select the language, it needs to ve specified in a variable
-        # called lang. If the variable isn't present, English will
-        # be used
-        try:
-            if lang in valid_languages:
-                self.lang = lang
-            else:
-                print("Not a valid language, using English!")
-        except NameError:
-            pass
 
         # Here we start the methods automaticaly, they can be used
         # anyway to modify default values.
@@ -137,15 +144,23 @@ class peakSelector:
         if self.bins_fused != 0 and self.bins_fused != False:
             self.rebining(self.bins_fused)
 
+
         # If a background file was specified as a kwarg, it will
         # execute the method to remove background noise automaticaly.
         if self.bkg_file is not None:
             self.substract_background_noise(self.bkg_file)
 
+        # If the peak_positions are specified beforehand, the gaussian
+        # centroids are initialized with the object
+        if self.peak_positions[-1][1] is not None:
+            self.fit_peak(plotting = False)
+
 
     def read_mca(self):
         """
         Reads the mca file specified in the object inicialization.
+
+        If executed after adding background, it will remove it
 
         Output: rates: np.ndarray, time: int
         """
@@ -189,15 +204,15 @@ class peakSelector:
 
         # We call the read function again, to ensure that future rebinings
         # made calling the method aren't made over the previous rebining
-        counts, time = self.read_mca()
-        xbins = np.arange(0, len(counts), 1)
+        rates, time = self.read_mca()
+        xbins = np.arange(0, len(rates), 1)
 
         new_xbins = []
-        new_counts = []
+        new_rates = []
         j = 0
         sum_bins = 0
 
-        for i in range(len(counts)):
+        for i in range(len(rates)):
 
             # If we are on the first bin of the fused group,
             # we save the x value
@@ -206,7 +221,7 @@ class peakSelector:
 
             # We keep adding up the bins until we reach
             # j == num_channels_fused.
-            sum_bins += counts[i]
+            sum_bins += rates[i]
             j += 1
 
             # If we are on the last bin of the fused group,
@@ -214,16 +229,17 @@ class peakSelector:
             # x value from the mean of the start and end x.
             if j == self.bins_fused:
                 j = 0
-                new_counts.append(sum_bins)
+                new_rates.append(sum_bins)
                 mean_x += xbins[i]
                 new_xbins.append(mean_x/2)
                 sum_bins = 0
 
-        self.counts = np.array(new_counts)
+        self.time = time
+        self.rates = np.array(new_rates)
         self.xbins = np.array(new_xbins)
         self.delta_x = self.xbins[1] - self.xbins[0]
 
-        self.rates = self.counts / self.time
+        self.counts = new_rates * time
 
         return self.rates, self.xbins
 
@@ -254,28 +270,6 @@ class peakSelector:
         return self.rates, self.time
 
 
-    def get_counts_uncertainty(self):
-        """
-        Computes the uncertainty of the counts based on Poisson Statistics.
-
-        Output: counts_uncertainty: np.ndaray
-        """
-
-        if self.bkg_rates is None:
-            counts_uncertainty = np.sqrt(self.counts)
-        else:
-            # This equation in not correct, I am wating to finish the
-            # uncertainty propagation module to update it
-            counts_uncertainty = np.sqrt(abs(self.rates / self.time) +
-                                    abs(self.bkg_rates / self.bkg_time))
-
-        # We round the uncertainty
-        for i in range(len(counts_uncertainty)):
-            counts_uncertainty[i] = round_uncertainty(counts_uncertainty[i])
-
-        return counts_uncertainty
-
-
     def get_rates_uncertainty(self):
         """
         Computes the uncertainty of the rates based on Poisson Statistics.
@@ -291,8 +285,8 @@ class peakSelector:
 
         # Needs updating, it is based on a simpified equations
         else:
-            rates_uncertainty = np.sqrt((self.rates / self.time) ** 2 +
-                                (self.bkg_rates / self.bkg_time) ** 2)
+            rates_uncertainty = np.sqrt(abs(self.rates / self.time) +
+                                abs(self.bkg_rates / self.bkg_time))
 
         for i in range(len(rates_uncertainty)):
             rates_uncertainty[i] = round_uncertainty(rates_uncertainty[i])
@@ -308,9 +302,9 @@ class peakSelector:
         fig, ax = plt.subplots(1,1)
         ax.bar(self.xbins, self.rates, self.delta_x)
 
-        ax.set_xlabel(transl["channels"][self.lang])
-        ax.set_ylabel(transl["rates"][self.lang])
-        fig.suptitle(transl["gamma spectrogram"][self.lang])
+        ax.set_xlabel(transl["channels"][mca.lang])
+        ax.set_ylabel(transl["rates"][mca.lang])
+        fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
         plt.show()
 
@@ -322,9 +316,9 @@ class peakSelector:
         fig, ax = plt.subplots(1,1)
         ax.errorbar(self.xbins, self.rates, yerr = self.get_rates_uncertainty(), fmt=".")
 
-        ax.set_xlabel(transl["channels"][self.lang])
-        ax.set_ylabel(transl["rates"][self.lang])
-        fig.suptitle(transl["gamma spectrogram"][self.lang])
+        ax.set_xlabel(transl["channels"][mca.lang])
+        ax.set_ylabel(transl["rates"][mca.lang])
+        fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
         plt.show()
 
@@ -340,25 +334,79 @@ class peakSelector:
         sensibility = 0.01 * max(self.xbins) # 1% of the width
 
 
+        def center_peak(peak):
+            """
+            Function that ensures there is the peak is centered for fitting.
+            Recieves peak list as an input: [ [peak_limit_1, peak_limit_2], peak_type ]
+            Takes the farthest limit and applies that distance to the closer limit.
+            """
+
+            idx1 = find_nearest(self.xbins, min(peak[0]))
+            idx2 = find_nearest(self.xbins, max(peak[0]))
+
+            # xbins and rates values for the selected zone (peak)
+            xbins_peak = self.xbins[idx1:idx2]
+            rates_peak = self.rates[idx1:idx2]
+
+            if peak[1] == "single":
+                # Here the center must be the highest point of the peak.
+
+                # Finds the index of the highest rate value and looks for
+                # its corresponding x value
+                x_center = xbins_peak[find_nearest(rates_peak, max(rates_peak))]
+
+
+            elif peak[1] == "double":
+                # The center of a double peak must be the minimmum between
+                # the two peaks. To find it, we can search for the min
+                # y value in the second third of x values (between 1/3 and 2/3)
+
+                y_center = min(rates_peak[len(xbins_peak) // 3 : 2 * len(xbins_peak) // 3])
+                x_center = xbins_peak[find_nearest(rates_peak, y_center)] # we find the equivalent x
+
+                # Now we can repeat the previous process
+
+            # Now, we look for the peak_limit that is farther away.
+            # We save the greatest distance and the index of the
+            # item that is closer to the peak.
+
+            farthest_distance = max(abs(np.array(peak[0]) - x_center))
+            closest_index = np.argmin(abs(np.array(peak[0]) - x_center))
+
+            # If the closest limit is the left one, we subtract
+            # the farthest distance, if it is the right one, we add it
+            if closest_index == 0: # Left one
+                peak[0][0] = x_center - farthest_distance
+
+            elif closest_index == 1: # Right one
+                peak[0][1] = x_center + farthest_distance
+
+
+            return peak
+
+
         def save_peak_type(peak_type: str):
 
             if len(peak_positions[-1][0]) == 0:
-                print(transl["two points necessary"][self.lang])
+                print(transl["two points necessary"][mca.lang])
 
             else:
                 if len(peak_positions[-1][0]) != 2:
-                    print(transl["two points necessary"][self.lang])
+                    print(transl["two points necessary"][mca.lang])
 
 
                 else:
-                    peak_positions[-1][1] = peak_type
+                    peak_positions[-1][0].sort() # We sort the peak
+                    peak_positions[-1][1] = peak_type # Saving the peak type
+                    # Now we modify the peak limits to center the peak
+                    peak_positions[-1] = center_peak(peak_positions[-1])
                     # Add the scheme next element
                     peak_positions.append([[], None])
 
                     for line in line_positions[-1]:
                         line.set(color = "gray")
 
-                    print(transl["peak selected"][self.lang])
+                    print(transl["peak selected"][mca.lang])
 
         def save_peak_data(x):
             """
@@ -367,7 +415,7 @@ class peakSelector:
 
             # Firstly, we check whether the last peak has both points
             if len(peak_positions[-1][0]) == 2 and peak_positions[-1][1] == None:
-                print(transl["both points selected"][self.lang])
+                print(transl["both points selected"][mca.lang])
 
             else:
                 if len(peak_positions[-1][0]) == 1:
@@ -422,26 +470,28 @@ class peakSelector:
 
 
         def click_event(event):
+            # For clicking the histogram
             if isinstance(event.artist, Rectangle):
                 x = event.artist.get_x()
                 save_peak_data(x)
                 fig.canvas.draw()
 
+            # For clicking the text
             elif isinstance(event.artist, Text):
                 text = event.artist.get_text()
-                if text == transl["reset current peak"][self.lang]:
+                if text == transl["reset current peak"][mca.lang]:
                     reset_peak_data()
                     fig.canvas.draw()
 
-                elif text == transl["reset all peaks"][self.lang]:
+                elif text == transl["reset all peaks"][mca.lang]:
                     reset_global_data()
                     fig.canvas.draw()
 
-                elif text == transl["mark as single"][self.lang]:
+                elif text == transl["mark as single"][mca.lang]:
                     save_peak_type("single")
                     fig.canvas.draw()
 
-                elif text == transl["mark as double"][self.lang]:
+                elif text == transl["mark as double"][mca.lang]:
                     save_peak_type("double")
                     fig.canvas.draw()
 
@@ -449,7 +499,7 @@ class peakSelector:
             if peak_positions[-1][1] == None:
                 self.peak_positions = peak_positions[:-1]
 
-            # self.fit_peak()
+            self.fit_peak()
 
 
         # We define the plot. The bar plot and the vertical lines
@@ -458,33 +508,32 @@ class peakSelector:
 
 
         # Here we add the interactive text
-
-        # Peak options
         max_xbins = max(self.xbins)
         max_rates = max(self.rates)
 
+        # Peak options
         ax.text(0.7 * max_xbins , 0.95 * max_rates ,
-                transl["confirm peak"][self.lang], size="x-large")
+                transl["confirm peak"][mca.lang], size="x-large")
 
         ax.text(0.7 * max_xbins, 0.85 * max_rates,
-                transl["mark as single"][self.lang], picker = True,
+                transl["mark as single"][mca.lang], picker = True,
                 size="large", style = "italic")
 
         ax.text(0.7 * max_xbins, 0.75 * max_rates,
-                transl["mark as double"][self.lang], picker = True,
+                transl["mark as double"][mca.lang], picker = True,
                 size="large", style = "italic")
 
 
         # Global options
         ax.text(0.20 * max_xbins, 0.95 * max_rates,
-                transl["reset peak"][self.lang], size="x-large")
+                transl["reset peak"][mca.lang], size="x-large")
 
         ax.text(0.20 * max_xbins, 0.85 * max_rates,
-                transl["reset current peak"][self.lang], picker = True,
+                transl["reset current peak"][mca.lang], picker = True,
                 size="large", style = "italic")
 
         ax.text(0.20 * max_xbins, 0.75 * max_rates,
-                transl["reset all peaks"][self.lang], picker = True,
+                transl["reset all peaks"][mca.lang], picker = True,
                 size="large", style = "italic")
 
 
@@ -503,27 +552,75 @@ class peakSelector:
         """
 
         # If no peaks were selected, we avoid unnecessary operations
-        if self.peak_positions[-1][1] is None:
+        if len(self.peak_positions) == 0:
+            print(transl["no peaks selected"][mca.lang])
             return None
+
+        # We separate the non curve_fit kwargs from plotting:
+        non_fit_kwargs = {}
+        for k, val in kwargs.items():
+            if k == "plotting":
+                non_fit_kwargs.update({k: val})
+
+        # We want plotting by default. Appart from that, we need
+        # to remove it from kwargs to avoid curve_fit errors.
+        if "plotting" in kwargs:
+            del kwargs["plotting"]
+
+        else:
+            non_fit_kwargs.update({"plotting": True})
+
 
         # Functions for single and double peaks.
         # One or two gaussian peaks with polynomial background.
+
+        def gaussian_peak(x, p3, p4, p5):
+            """
+            Gaussian peak
+            """
+            return p3 * np.exp(-0.5 * ((x - p4) / p5) ** 2)
+
+        def polynomial_background(x, p0, p1, p2):
+            """
+            Polynomial background
+            """
+            return p0 + p1 * x + p2 * x ** 2
+
         def single_peak(x, p0, p1, p2, p3, p4, p5):
-            bkg_func = p0 + p1 * x + p2 * x ** 2
-            gaussian_func = p3 * np.exp(-0.5 * ((x - p4) / p5) ** 2)
+            """
+            Functional form of a gaussian with polynomial background
+            """
+            bkg_func = polynomial_background(x, p0, p1, p2)
+            gaussian_func = gaussian_peak(x, p3, p4, p5)
             return bkg_func + gaussian_func
 
         def double_peak(x, p0, p1, p2, p3, p4, p5, p6, p7, p8):
-            bkg_func = p0 + p1 * x + p2 * x ** 2
-            gaussian_func1 = p3 * np.exp(-0.5 * ((x - p4) / p5) ** 2)
-            gaussian_func2 = p6 * np.exp(-0.5 * ((x - p7) / p8) ** 2)
+            """
+            Functional form of a double gaussian with polynomial background
+            """
+            bkg_func = polynomial_background(x, p0, p1, p2)
+            gaussian_func1 = gaussian_peak(x, p3, p4, p5)
+            gaussian_func2 = gaussian_peak(x, p6, p7, p8)
             return bkg_func + gaussian_func1 + gaussian_func2
 
+        def get_FWHM(x_center, xbins, rates):
+            """
+            Computes an aproximate value of FWHM
+            (Full Width at Half Maximum) of a peak.
+            Inputs: x_center (center of the peak in bins),
+                    xbins: (x values of the peak),
+                    rates: (rates of the peak)
 
-        # Find nearest array element to value
-        def find_nearest(array, value):
-            return (np.abs(array - value)).argmin()
+            Output: FWHM
+            """
+            # It's not at the half because it helps fit.
+            y_FWHM = max(rates) * 0.65
+            x_FWHM = x[find_nearest(rates, y_FWHM)]
+            FWHM = abs(x_FWHM - x_center)
+            return FWHM
 
+        list_popt = []
+        list_pcov = []
 
         for peak in self.peak_positions:
 
@@ -537,53 +634,232 @@ class peakSelector:
 
             x_fit = np.linspace(x[0], x[-1], 100)
             y_fit = np.zeros(len(x_fit))
+            y_gauss_1 = np.zeros(len(x_fit))
+            y_gauss_2 = np.zeros(len(x_fit))
+            y_background = np.zeros(len(x_fit))
+
             try:
                 if peak[1] == "single":
-                    p0 = [1,1,1,
-                        sum(y) / np.sqrt(2*np.pi),
-                        np.mean(peak[0]),
-                        abs(x[0] - x[len(x) // 2])]
+
+                    # Firsly, we get some data of the peak
+                    x_center = x[len(x) // 2] # The peak is centered
+
+                    # Now we compute the FWHM (Full Width at Half Maximum).
+                    # Sigma is related to the FWHM: 2.35 * sigma = FWHM
+                    FWHM = get_FWHM(x_center, x, y)
+
+                    # We estimate the parameters. The most important are
+                    # the center and sigma, the other ones can be initialized as 1
+                    p0 = [1,1,1,1, x_center, FWHM]
+
+
+                    # Now we compute the curve_fit (with additional kwargs or with auto p0)
                     if len(kwargs) == 0:
                         popt, pcov = curve_fit(single_peak, x, y, p0=p0, sigma = sy)
                     else:
                         popt, pcov = curve_fit(single_peak, x, y, sigma = sy, **kwargs)
 
-                    for i in range(len(x_fit)):
-                        y_fit[i] = single_peak(x_fit[i], popt[0], popt[1],
-                                        popt[2], popt[3], popt[4], popt[5])
-                elif peak[1] == "double":
-                    p0 = [1,1,1,
-                        -sum(y) / np.sqrt(2*np.pi),
-                        np.mean(peak[0]) * 1/3,
-                        abs(x[0] - x[len(x) // 4]),
-                        -sum(y) / np.sqrt(2*np.pi),
-                        np.mean(peak[0]) * 2/3,
-                        abs(x[0] - x[len(x) // 4])]
+                    # We calculate the plotting points of the theoretical function.
+                    y_fit = single_peak(x_fit, popt[0], popt[1], popt[2], popt[3], popt[4], popt[5])
+                    y_background = polynomial_background(x_fit, popt[0], popt[1], popt[2])
+                    y_gauss_1 =  gaussian_peak(x_fit, popt[3], popt[4], popt[5])
 
+                elif peak[1] == "double":
+                    # Firstly, we need the x values of the peak centers.
+
+                    # We split the list in two, one for each peak
+                    x_1 = x[: len(x) // 2]
+                    x_2 = x[len(x) // 2 :]
+
+                    y_1 = y[: len(y) // 2]
+                    y_2 = y[len(y) // 2 :]
+
+                    # We locate the x values of each peak:
+                    x_center_1 = x_1[find_nearest(y_1, max(y_1))]
+                    x_center_2 = x_2[find_nearest(y_2, max(y_2))]
+
+                    # Now we compute the FWHM (Full Width at Half Maximum).
+                    # Sigma is related to the FWHM: 2.35 * sigma = FWHM
+                    FWHM_1 = get_FWHM(x_center_1, x_1, y_1)
+                    FWHM_2 = get_FWHM(x_center_1, x_1, y_1)
+
+                    # We estimate the parameters. The most important are
+                    # the center and sigma, the other ones can be initialized as 1
+
+                    p0 = [1,1,1,1, x_center_1, FWHM_1, 1, x_center_2, FWHM_2]
+
+                    # Now we compute the curve_fit (with additional kwargs or with auto p0)
                     if len(kwargs) == 0:
-                        popt, pcov = curve_fit(double_peak, x, y, p0=p0, sigma = sy)
+                        popt, pcov = curve_fit(double_peak, x, y, p0=p0, sigma = sy, )
                     else:
                         popt, pcov = curve_fit(double_peak, x, y, sigma = sy, **kwargs)
 
-                    print(popt)
-                    for i in range(len(x_fit)):
-                        y_fit[i] = double_peak(x_fit[i], popt[0], popt[1],
-                                    popt[2], popt[3], popt[4], popt[5],
-                                    popt[6], popt[7], popt[8])
+
+                    # We calculate the plotting points of the theoretical function.
+                    y_fit = double_peak(x_fit, popt[0], popt[1], popt[2], popt[3],
+                                           popt[4], popt[5], popt[6], popt[7], popt[8])
+                    y_background = polynomial_background(x_fit, popt[0], popt[1], popt[2])
+                    y_gauss_1 = gaussian_peak(x_fit, popt[3], popt[4], popt[5])
+                    y_gauss_2 = gaussian_peak(x_fit, popt[6], popt[7], popt[8])
 
 
+                # We only plotting it's true (default value)
+                for k, val in non_fit_kwargs.items():
+                    if k == "plotting" and val:
+                        # We plot the result
+                        fig, ax = plt.subplots(1,1)
+                        ax.plot(x_fit, y_fit, label = transl["fit"][mca.lang])
+                        ax.plot(x_fit, y_background, label = transl["background"][mca.lang])
+                        ax.errorbar(x,y, yerr=sy ,fmt=".", label = transl["points"][mca.lang])
 
-                fig, ax = plt.subplots(1,1)
-                ax.plot(x_fit, y_fit)
-                ax.errorbar(x,y, yerr=sy ,fmt=".")
-                print(popt)
+                        if peak[1] == "double":
+                            ax.plot(x_fit, y_gauss_1, label = transl["gauss 1"][mca.lang])
+                            ax.plot(x_fit, y_gauss_2, label = transl["gauss 2"][mca.lang])
+
+                        else:
+                            ax.plot(x_fit, y_gauss_1, label = transl["gauss"][mca.lang])
+
+
+                        ax.legend()
+                        ax.set_xlabel(transl["channels"][mca.lang])
+                        ax.set_ylabel(transl["rates"][mca.lang])
+                        fig.suptitle(transl["gamma spectrogram"][mca.lang])
+
+                # We append the values to the return list
+                list_pcov.append(pcov)
+                list_popt.append(popt)
 
             except RuntimeError:
-                print("Optimal parameters not found")
+                print(transl["optimal parameters not found"][mca.lang])
+                popt = None
+                pcov = None
 
-
+        # Showing the plots
         plt.show()
-        return popt, pcov
+
+        # Before returning, and for calibration purposes, we will find
+        # all gaussian centroids and append them into a list
+        peak_channels = []
+        peak_channels_uncertainty = []
+
+        for i in range(len(list_pcov)):
+            if peak[1] == "single":
+                peak_channels.append(list_popt[i][4])
+                peak_channels_uncertainty.append(list_pcov[i][4,4])
+
+            elif peak[1] == "double":
+                peak_channels.append(list_popt[i][4])
+                peak_channels_uncertainty.append(list_pcov[i][4,4])
+
+                peak_channels.append(list_popt[i][7])
+                peak_channels_uncertainty.append(list_pcov[i][7,7])
+
+
+        sorted_pairs = sorted(zip(peak_channels, peak_channels_uncertainty))
+        self.peak_channels = [v1 for v1, v2 in sorted_pairs]
+        self.peak_channels_uncertainty = [v2 for v1, v2 in sorted_pairs]
+
+
+        # We return the data
+        if len(list_pcov) == 1 and (list_popt) == 1:
+            return popt, pcov
+        else:
+            return list_popt, list_pcov
+
+
+    def save_peaks(self, file_path):
+        """
+        Saves peak info to specified text file
+        absolute_path
+        """
+
+        # We check if the file exists
+        if os.path.exists(file_path):
+            user_input = (tranls["overwrite file?"][mca.lang])
+            if user_input.lower() != "y":
+                print(transl["cancelling operation"][mca.lang])
+                return
+            else:
+                print(transl["overwritting file"][mca.lang])
+
+
+        with open(file_path, "w") as f:
+            for peak in self.peak_positions:
+                f.write(f"{peak[0][0]}, {peak[0][1]}, {peak[1]}\n")
+
+
+    def load_peaks(self, file_path):
+        """
+        Load peak data from specified file
+        absolute_path
+        """
+
+        with open(file_path, "r") as f:
+
+            peak_positions = []
+            line = f.readline()
+            while line != "":
+                peak_limit_1, peak_limit_2, peak_type = line.rstrip("\n").split(",")
+                peak_positions.append([[float(peak_limit_1), float(peak_limit_2)], peak_type.lstrip()])
+                line = f.readline()
+
+
+        # We save the loaded peak_positions
+        self.peak_positions = peak_positions
+        self.fit_peak(plotting = False)
+        return peak_positions
+
+    def set_peak_energies(self, energy_list):
+        """
+        Sets the real energy value of the peaks
+        """
+        energy_list.sort()
+        self.peak_energies = energy_list
+
+
+    def save_peak_energies(self, file_path):
+        """
+        Saves the real energy value of the peaks
+        """
+
+         # We check if the file exists
+        if os.path.exists(file_path):
+            user_input = (tranls["overwrite file?"][mca.lang])
+            if user_input.lower() != "y":
+                print(transl["cancelling operation"][mca.lang])
+                return
+            else:
+                print(transl["overwritting file"][mca.lang])
+
+
+        with open(file_path, "w") as f:
+            for value in self.peak_energies:
+                f.write(f"{value}\n")
+
+
+    def load_peak_energies(self, file_path):
+
+        with open(file_path, "r") as f:
+
+            peak_energies = []
+            line = f.readline()
+            while line != "":
+                peak_energies.append(float(line))
+                line = f.readline()
+
+        self.set_peak_energies(peak_energies)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
