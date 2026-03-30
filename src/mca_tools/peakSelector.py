@@ -143,9 +143,6 @@ class peakSelector:
             elif k == "fig_path":
                 self.fig_path = val
 
-        # Create a directory to store the figures (if it does not exist already)
-        if not pathlib.Path(CWD + self.fig_path).is_dir():
-            os.mkdir(CWD + self.fig_path)
 
         # Here we start the methods automaticaly, they can be used
         # anyway to modify default values.
@@ -319,6 +316,10 @@ class peakSelector:
         ax.set_ylabel(transl["rates"][mca.lang])
         fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
+        # Create a directory to store the figures (if it does not exist already)
+        if not pathlib.Path(CWD + self.fig_path).is_dir():
+            os.mkdir(CWD + self.fig_path)
+
         # Save the plots
         # fig_path/Bismuth_data_PLOT.pdf
         fig_name = f"{pathlib.Path(self.file_path).stem}_PLOT.pdf"
@@ -337,6 +338,9 @@ class peakSelector:
         ax.set_xlabel(transl["channels"][mca.lang])
         ax.set_ylabel(transl["rates"][mca.lang])
         fig.suptitle(transl["gamma spectrogram"][mca.lang])
+
+        if not pathlib.Path(CWD + self.fig_path).is_dir():
+            os.mkdir(CWD + self.fig_path)
 
         # Save the errorbar plots
         # fig_path/Bismuth_data_ERRORBAR.pdf
@@ -747,6 +751,9 @@ class peakSelector:
                         ax.set_xlabel(transl["channels"][mca.lang])
                         ax.set_ylabel(transl["rates"][mca.lang])
                         fig.suptitle(transl["gamma spectrogram"][mca.lang])
+
+                        if not pathlib.Path(CWD + self.fig_path).is_dir():
+                            os.mkdir(CWD + self.fig_path)
 
                         # Save the plots
                         # fig_path/Bismuth_data_FITPEAK_2560_2998_single.pdf
