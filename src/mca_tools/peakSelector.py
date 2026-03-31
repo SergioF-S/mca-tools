@@ -715,7 +715,8 @@ class peakSelector:
                             style = ['science', 'ieee']
                         else:
                             style = ['science',"no-latex",'ieee']
-                        with plt.style.context(style)
+                            
+                        with plt.style.context(style):
                             plt.style.use(style)
                             plt.rcParams.update({
                                 'figure.dpi': '100', # Suggested by https://github.com/garrettj403/SciencePlots/wiki/Gallery#styles-for-specific-academic-journals
