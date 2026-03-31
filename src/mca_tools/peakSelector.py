@@ -710,11 +710,11 @@ class peakSelector:
                     if k == "plotting" and val:
                         # We plot the result
 
-# Check if latex is installed to select the style
-if shutil.which('latex'):
-   style = ['science', 'ieee']
-else:
-    style = ['science',"no-latex",'ieee']
+                        # Check if latex is installed to select the style
+                        if shutil.which('latex'):
+                            style = ['science', 'ieee']
+                        else:
+                            style = ['science',"no-latex",'ieee']
                         with plt.style.context(style)
                             plt.style.use(style)
                             plt.rcParams.update({
