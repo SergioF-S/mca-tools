@@ -1,4 +1,6 @@
 import os
+import pathlib
+
 import numpy as np
 from scipy.optimize import curve_fit
 
@@ -14,6 +16,8 @@ from .uncertainty import round_uncertainty
 import mca_tools as mca # lang as a global function
 
 
+# Current Working Directory, used later to get relative paths
+CWD = pathlib.Path().resolve()
 
 matplotlib.use("qtagg")
 
@@ -72,6 +76,12 @@ class peakSelector:
                  background radiation. If specified, the background
                  will be substracted from the main data.
 
+        fig_path: the path where figures will be automatically saved,
+                  *relative* to the CWD. MUST end with a "/" (forward slash)
+                  Default: "fig_path/"
+
+        fig_ext: the file extension for the figures. Default: pdf.
+
     Methods:
     read_mca: reads the number of counts in each channel and the total
               time of the measurement.
@@ -109,6 +119,8 @@ class peakSelector:
 
         # User options
         self.bins_fused = 10 # Default number of bins fused in rebining
+        self.fig_path = "fig_path/"
+        self.fig_ext = "pdf"
 
 
         # Peak info
@@ -133,6 +145,10 @@ class peakSelector:
                 self.load_peaks(val)
             elif k == "peak_energies":
                 self.set_peak_energies(val)
+            elif k == "fig_path":
+                self.fig_path = val
+            elif k == "fig_ext":
+                self.fig_ext = val
 
 
         # Here we start the methods automaticaly, they can be used
@@ -167,7 +183,7 @@ class peakSelector:
         """
 
         with open(self.file_path, "r") as f:
-    
+
             time = None
             counts = []
             line = f.readline()
@@ -312,6 +328,17 @@ class peakSelector:
             ax.set_ylabel(transl["rates"][mca.lang])
             fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
+        # Create a directory to store the figures (if it does not exist already)
+        if not (CWD / self.fig_path).is_dir():
+            os.mkdir(CWD / self.fig_path)
+
+        # Save the plots
+        # fig_path/Bismuth_data_PLOT.pdf
+        fig_name = pathlib.Path(self.file_path).stem
+        fig.savefig(
+            str(CWD / self.fig_path / fig_name) + f"_PLOT.{self.fig_ext}"
+        )
+
         plt.show()
 
     def plot_errorbar(self):
@@ -331,6 +358,16 @@ class peakSelector:
             ax.set_xlabel(transl["channels"][mca.lang])
             ax.set_ylabel(transl["rates"][mca.lang])
             fig.suptitle(transl["gamma spectrogram"][mca.lang])
+
+        if not (CWD / self.fig_path).is_dir():
+            os.mkdir(CWD / self.fig_path)
+
+        # Save the errorbar plots
+        # fig_path/Bismuth_data_ERRORBAR.pdf
+        fig_name = pathlib.Path(self.file_path).stem
+        fig.savefig(
+            str(CWD / self.fig_path / fig_name) + f"_ERRORBAR.{self.fig_ext}"
+        )
 
         plt.show()
 
@@ -552,7 +589,7 @@ class peakSelector:
 
         fig.canvas.mpl_connect('pick_event', click_event)
         fig.canvas.mpl_connect('close_event', close_event)
-        fig.show()
+        plt.show()
 
 
     def fit_peak(self, **kwargs):
@@ -749,6 +786,20 @@ class peakSelector:
                             # Showing the plots
                             plt.show()
 
+                        if not (CWD / self.fig_path).is_dir():
+                            os.mkdir(CWD / self.fig_path)
+
+                        # Save the plots
+                        # fig_path/Bismuth_data_FITPEAK_2560_2998_single.pdf
+                        fig_name = pathlib.Path(self.file_path).stem
+                        fig.savefig(
+                            str(CWD / self.fig_path / fig_name)
+                            + f"_FITPEAK_{peak[0][0]:.0f}_{peak[0][1]:.0f}_{peak[1]}.{self.fig_ext}"
+                        )
+
+                        # Showing the plots
+                        plt.show()
+
                 # We append the values to the return list
                 list_pcov.append(pcov)
                 list_popt.append(popt)
@@ -870,18 +921,3 @@ class peakSelector:
                 line = f.readline()
 
         self.set_peak_energies(peak_energies)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
