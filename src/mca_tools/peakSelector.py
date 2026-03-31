@@ -7,6 +7,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.text import Text
 import matplotlib
 import scienceplots
+import shutil
 
 from .translations import translation_peakSelector as transl
 from .uncertainty import round_uncertainty
@@ -709,9 +710,13 @@ class peakSelector:
                     if k == "plotting" and val:
                         # We plot the result
 
-                        # Set the style
-                        with plt.style.context(['science', 'ieee']):
-                            plt.style.use(['science', 'ieee'])
+# Check if latex is installed to select the style
+if shutil.which('latex'):
+   style = ['science', 'ieee']
+else:
+    style = ['science',"no-latex",'ieee']
+                        with plt.style.context(style)
+                            plt.style.use(style)
                             plt.rcParams.update({
                                 'figure.dpi': '100', # Suggested by https://github.com/garrettj403/SciencePlots/wiki/Gallery#styles-for-specific-academic-journals
                                 'font.size': 12.0
