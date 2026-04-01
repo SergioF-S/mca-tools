@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
 import matplotlib
+import scienceplots
 
 from .translations import translation_peakSelector as transl
 from .uncertainty import round_uncertainty
@@ -314,48 +315,59 @@ class peakSelector:
         """
         Plots the current rates.
         """
+        with plt.style.context(mca.style):
+            plt.style.use(mca.style)
+            plt.rcParams.update({
+                'figure.dpi': '120', # Suggested by https://github.com/garrettj403/SciencePlots/wiki/Gallery#styles-for-specific-academic-journals
+                'font.size': 12.0
+            })
+            fig, ax = plt.subplots(1,1)
+            ax.bar(self.xbins, self.rates, self.delta_x)
 
-        fig, ax = plt.subplots(1,1)
-        ax.bar(self.xbins, self.rates, self.delta_x)
+            ax.set_xlabel(transl["channels"][mca.lang])
+            ax.set_ylabel(transl["rates"][mca.lang])
+            fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
-        ax.set_xlabel(transl["channels"][mca.lang])
-        ax.set_ylabel(transl["rates"][mca.lang])
-        fig.suptitle(transl["gamma spectrogram"][mca.lang])
+            # Create a directory to store the figures (if it does not exist already)
+            if not (CWD / self.fig_path).is_dir():
+                os.mkdir(CWD / self.fig_path)
 
-        # Create a directory to store the figures (if it does not exist already)
-        if not (CWD / self.fig_path).is_dir():
-            os.mkdir(CWD / self.fig_path)
+            # Save the plots
+            # fig_path/Bismuth_data_PLOT.pdf
+            fig_name = pathlib.Path(self.file_path).stem
+            fig.savefig(
+                str(CWD / self.fig_path / fig_name) + f"_PLOT.{self.fig_ext}"
+            )
 
-        # Save the plots
-        # fig_path/Bismuth_data_PLOT.pdf
-        fig_name = pathlib.Path(self.file_path).stem
-        fig.savefig(
-            str(CWD / self.fig_path / fig_name) + f"_PLOT.{self.fig_ext}"
-        )
-
-        plt.show()
+            plt.show()
 
     def plot_errorbar(self):
         """
         Plots the current rates with errorbars
         """
 
-        fig, ax = plt.subplots(1,1)
-        ax.errorbar(self.xbins, self.rates, yerr = self.get_rates_uncertainty(), fmt=".")
+        with plt.style.context(mca.style):
+            plt.style.use(mca.style)
+            plt.rcParams.update({
+                'figure.dpi': '120',
+                'font.size': 12.0
+            })
+            fig, ax = plt.subplots(1,1)
+            ax.errorbar(self.xbins, self.rates, yerr = self.get_rates_uncertainty(), fmt=".")
 
-        ax.set_xlabel(transl["channels"][mca.lang])
-        ax.set_ylabel(transl["rates"][mca.lang])
-        fig.suptitle(transl["gamma spectrogram"][mca.lang])
+            ax.set_xlabel(transl["channels"][mca.lang])
+            ax.set_ylabel(transl["rates"][mca.lang])
+            fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
-        if not (CWD / self.fig_path).is_dir():
-            os.mkdir(CWD / self.fig_path)
+            if not (CWD / self.fig_path).is_dir():
+                os.mkdir(CWD / self.fig_path)
 
-        # Save the errorbar plots
-        # fig_path/Bismuth_data_ERRORBAR.pdf
-        fig_name = pathlib.Path(self.file_path).stem
-        fig.savefig(
-            str(CWD / self.fig_path / fig_name) + f"_ERRORBAR.{self.fig_ext}"
-        )
+            # Save the errorbar plots
+            # fig_path/Bismuth_data_ERRORBAR.pdf
+            fig_name = pathlib.Path(self.file_path).stem
+            fig.savefig(
+                str(CWD / self.fig_path / fig_name) + f"_ERRORBAR.{self.fig_ext}"
+            )
 
         plt.show()
 
@@ -744,37 +756,49 @@ class peakSelector:
                 for k, val in non_fit_kwargs.items():
                     if k == "plotting" and val:
                         # We plot the result
-                        fig, ax = plt.subplots(1,1)
-                        ax.plot(x_fit, y_fit, label = transl["fit"][mca.lang])
-                        ax.plot(x_fit, y_background, label = transl["background"][mca.lang])
-                        ax.errorbar(x,y, yerr=sy ,fmt=".", label = transl["points"][mca.lang])
 
-                        if peak[1] == "double":
-                            ax.plot(x_fit, y_gauss_1, label = transl["gauss 1"][mca.lang])
-                            ax.plot(x_fit, y_gauss_2, label = transl["gauss 2"][mca.lang])
+                        # Set the style. Style selection and latex installation
+                        # check is performed in __init__.py
+                        with plt.style.context(mca.style):
+                            plt.style.use(mca.style)
+                            print(plt.rcParams.keys())
+                            plt.rcParams.update({
+                                'figure.dpi': '250',
+                                'figure.figsize': [7.5, 6.5],
+                                'figure.constrained_layout.use': True,
+                                'font.size': 12.0
+                            })
+                            fig, ax = plt.subplots(1,1)
+                            ax.plot(x_fit, y_fit, label = transl["fit"][mca.lang])
+                            ax.plot(x_fit, y_background, label = transl["background"][mca.lang])
+                            ax.errorbar(x,y, yerr=sy ,fmt=".", label = transl["points"][mca.lang])
 
-                        else:
-                            ax.plot(x_fit, y_gauss_1, label = transl["gauss"][mca.lang])
+                            if peak[1] == "double":
+                                ax.plot(x_fit, y_gauss_1, label = transl["gauss 1"][mca.lang])
+                                ax.plot(x_fit, y_gauss_2, label = transl["gauss 2"][mca.lang])
+
+                            else:
+                                ax.plot(x_fit, y_gauss_1, label = transl["gauss"][mca.lang])
 
 
-                        ax.legend()
-                        ax.set_xlabel(transl["channels"][mca.lang])
-                        ax.set_ylabel(transl["rates"][mca.lang])
-                        fig.suptitle(transl["gamma spectrogram"][mca.lang])
+                            ax.legend()
+                            ax.set_xlabel(transl["channels"][mca.lang])
+                            ax.set_ylabel(transl["rates"][mca.lang])
+                            fig.suptitle(transl["gamma spectrogram"][mca.lang])
 
-                        if not (CWD / self.fig_path).is_dir():
-                            os.mkdir(CWD / self.fig_path)
+                            if not (CWD / self.fig_path).is_dir():
+                                os.mkdir(CWD / self.fig_path)
 
-                        # Save the plots
-                        # fig_path/Bismuth_data_FITPEAK_2560_2998_single.pdf
-                        fig_name = pathlib.Path(self.file_path).stem
-                        fig.savefig(
-                            str(CWD / self.fig_path / fig_name)
-                            + f"_FITPEAK_{peak[0][0]:.0f}_{peak[0][1]:.0f}_{peak[1]}.{self.fig_ext}"
-                        )
+                            # Save the plots
+                            # fig_path/Bismuth_data_FITPEAK_2560_2998_single.pdf
+                            fig_name = pathlib.Path(self.file_path).stem
+                            fig.savefig(
+                                str(CWD / self.fig_path / fig_name)
+                                + f"_FITPEAK_{peak[0][0]:.0f}_{peak[0][1]:.0f}_{peak[1]}.{self.fig_ext}"
+                            )
 
-                        # Showing the plots
-                        plt.show()
+                            # Showing the plots
+                            plt.show()
 
                 # We append the values to the return list
                 list_pcov.append(pcov)
@@ -784,6 +808,7 @@ class peakSelector:
                 print(transl["optimal parameters not found"][mca.lang])
                 popt = None
                 pcov = None
+
 
         # Before returning, and for calibration purposes, we will find
         # all gaussian centroids and append them into a list
