@@ -7,12 +7,9 @@ The expected feature set is:
 - Characterizing the geometrical eficiency of the detector (including a Monte Carlo simulation)
 
 ## Installation
-Currently, pip installation pointing to the repo doesn't work well (see https://github.com/dcoutogarcia/mca-tools/issues/6). 
-To install it you need to clone the repo. It is recommended to create a venv.
+To install using pip run the code below. It is recommended to create a venv.
 ```bash
-git clone https://github.com/dcoutogarcia/mca-tools
-cd mca-tools
-pip install .
+pip install git+https://github.com/dcoutogarcia/mca-tools.git
 ```
 
 ## `peakSelector` class
