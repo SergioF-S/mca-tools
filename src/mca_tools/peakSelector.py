@@ -1022,7 +1022,7 @@ class peakSelector:
         dic_df.update({"$mu$": formatted_params[4]})
         dic_df.update({"$sigma$": formatted_params[5]})
         dic_df.update({"$chi^2_r$": formatted_chi2})
-        dic_df.update({r"p-value (\%)": formatted_pvalue})
+        dic_df.update({f"$\"p-value\"$(%)": formatted_pvalue})
 
         df = pd.DataFrame(dic_df)
 
