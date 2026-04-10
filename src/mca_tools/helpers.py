@@ -147,7 +147,7 @@ def calibration_helper(folder_path, bkg_file = None, **kwargs):
         else:
             formatted_p_value = (f"{p_value:.2f}")
 
-        dic.update({f"p-value(%)": formatted_p_value})
+        dic.update({f"$\"p-value\"(%)$": formatted_p_value})
 
         df = pd.DataFrame(dic, index = [0])
         df.to_csv(os.path.join(output_path, "csv", calcs_str[i] + ".csv"), index = False)
