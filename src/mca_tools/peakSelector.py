@@ -21,7 +21,7 @@ from .options import lang, style
 # Current Working Directory, used later to get relative paths
 CWD = pathlib.Path().resolve()
 
-matplotlib.use("qtagg")
+# matplotlib.use("qtagg")
 # matplotlib.pyplot.set_loglevel("critical")
 
 """
